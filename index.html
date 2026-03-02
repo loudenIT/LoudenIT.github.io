@@ -12,6 +12,7 @@
             --accent: #38bdf8;
             --text-main: #f1f5f9;
             --text-dim: #94a3b8;
+            --terminal-green: #00ff41;
         }
 
         body {
@@ -21,31 +22,70 @@
             line-height: 1.6;
             margin: 0;
             padding: 0;
+            overflow-x: hidden;
         }
 
+        /* --- Boot Screen Styles --- */
+        #boot-screen {
+            position: fixed;
+            inset: 0;
+            background: #000;
+            color: var(--terminal-green);
+            z-index: 10000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Courier New', monospace;
+        }
+
+        #boot-content {
+            width: 90%;
+            max-width: 600px;
+            text-shadow: 0 0 5px var(--terminal-green);
+        }
+
+        .boot-line {
+            margin-bottom: 8px;
+            font-size: 1.1rem;
+        }
+
+        #cursor {
+            display: inline-block;
+            width: 10px;
+            height: 1.2rem;
+            background: var(--terminal-green);
+            animation: blink 0.8s infinite;
+            vertical-align: middle;
+        }
+
+        @keyframes blink { 50% { opacity: 0; } }
+
+        .fade-out-terminal {
+            transition: opacity 1s ease, visibility 1s;
+            opacity: 0;
+            visibility: hidden;
+        }
+
+        /* --- Main Content Styles --- */
         .container {
             max-width: 800px;
             margin: 0 auto;
             padding: 40px 20px;
+            position: relative;
+            z-index: 1;
+            opacity: 0; /* Hidden until boot finishes */
+            transform: translateY(20px);
+            transition: opacity 1s ease, transform 1s ease;
         }
 
-        header {
-            text-align: center;
-            padding: 60px 0;
+        .container.visible {
+            opacity: 1;
+            transform: translateY(0);
         }
 
-        h1 {
-            font-size: 2.5rem;
-            margin-bottom: 10px;
-            color: var(--accent);
-        }
-
-        .subtitle {
-            font-size: 1.2rem;
-            color: var(--text-dim);
-            font-weight: 300;
-        }
-
+        header { text-align: center; padding: 60px 0; }
+        h1 { font-size: 2.5rem; margin-bottom: 10px; color: var(--accent); }
+        .subtitle { font-size: 1.2rem; color: var(--text-dim); font-weight: 300; }
         .section-title {
             border-bottom: 2px solid var(--card-bg);
             padding-bottom: 10px;
@@ -56,28 +96,18 @@
             color: var(--accent);
         }
 
-        .grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            margin-top: 20px;
-        }
-
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
         .box {
-            background: var(--card-bg);
+            background: rgba(30, 41, 59, 0.8); /* Added transparency for matrix effect */
             padding: 24px;
             border-radius: 12px;
-            transition: transform 0.2s ease;
+            transition: transform 0.2s ease, border-color 0.2s ease;
             border: 1px solid rgba(255,255,255,0.05);
+            backdrop-filter: blur(4px);
         }
 
-        .box:hover {
-            transform: translateY(-5px);
-            border-color: var(--accent);
-        }
-
+        .box:hover { transform: translateY(-5px); border-color: var(--accent); }
         h3 { margin-top: 0; color: var(--text-main); }
-        
         ul { padding-left: 20px; color: var(--text-dim); }
         li { margin-bottom: 8px; }
 
@@ -92,14 +122,23 @@
             font-weight: bold;
         }
 
-        @media (max-width: 600px) {
-            .grid { grid-template-columns: 1fr; }
-        }
+        #matrix { position: fixed; top: 0; left: 0; z-index: -1; }
+
+        @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
     </style>
 </head>
 <body>
 
-    <div class="container">
+    <div id="boot-screen">
+        <div id="boot-content">
+            <div id="boot-text"></div>
+            <span id="cursor"></span>
+        </div>
+    </div>
+
+    <canvas id="matrix"></canvas>
+
+    <div class="container" id="main-content">
         <header>
             <h1>Louden Jackson</h1>
             <p class="subtitle">Future Network & Cybersecurity Professional</p>
@@ -142,35 +181,64 @@
         </p>
     </div>
 
+    <script>
+        // --- Matrix Animation ---
+        const canvas = document.getElementById('matrix');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth; 
+        canvas.height = window.innerHeight;
+        const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%^&*()*&^%";
+        const fontSize = 16;
+        const columns = canvas.width / fontSize;
+        const drops = Array(Math.floor(columns)).fill(1);
+
+        function drawMatrix() {
+            ctx.fillStyle = "rgba(0, 0, 0, 0.05)";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "#0F0"; 
+            ctx.font = fontSize + "px arial";
+            drops.forEach((y, i) => {
+                const text = letters[Math.floor(Math.random() * letters.length)];
+                ctx.fillText(text, i * fontSize, y * fontSize);
+                if (y * fontSize > canvas.height && Math.random() > 0.975) drops[i] = 0;
+                drops[i]++;
+            });
+        }
+        setInterval(drawMatrix, 33);
+
+        // --- Boot Sequence ---
+        const bootMessages = [
+            "STN [v.4.0.2] INITIALIZING...",
+            "KERNEL: LOADED",
+            "ESTABLISHING SECURE TUNNEL TO LOUDEN_JACKSON...",
+            "HANDSHAKE SUCCESSFUL (AES-256)",
+            "DECRYPTING PORTFOLIO ASSETS...",
+            "ACCESS GRANTED."
+        ];
+
+        const bootTextContainer = document.getElementById('boot-text');
+        let msgIndex = 0;
+
+        function typeBootLines() {
+            if (msgIndex < bootMessages.length) {
+                const line = document.createElement('div');
+                line.className = 'boot-line';
+                line.textContent = `> ${bootMessages[msgIndex]}`;
+                bootTextContainer.appendChild(line);
+                msgIndex++;
+                
+                // Pacing: fast initial lines, slower "decryption"
+                const delay = msgIndex > 3 ? 800 : 400; 
+                setTimeout(typeBootLines, delay);
+            } else {
+                setTimeout(() => {
+                    document.getElementById('boot-screen').classList.add('fade-out-terminal');
+                    document.getElementById('main-content').classList.add('visible');
+                }, 1000);
+            }
+        }
+
+        window.addEventListener('load', typeBootLines);
+    </script>
 </body>
 </html>
-<canvas id="matrix"></canvas>
-<style>
-  body { margin: 0; background: black; overflow-x: hidden; font-family: 'Courier New', monospace; }
-  #matrix { position: fixed; top: 0; left: 0; z-index: -1; }
-  .content { position: relative; z-index: 1; color: #00ff41; text-shadow: 0 0 5px #00ff41; padding: 50px; }
-  .box { background: rgba(0, 20, 0, 0.8); border: 1px solid #00ff41; padding: 20px; margin-bottom: 20px; box-shadow: 0 0 15px rgba(0, 255, 65, 0.2); }
-</style>
-
-<script>
-  const canvas = document.getElementById('matrix');
-  const ctx = canvas.getContext('2d');
-  canvas.width = window.innerWidth; canvas.height = window.innerHeight;
-  const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%^&*()*&^%";
-  const fontSize = 16;
-  const columns = canvas.width / fontSize;
-  const drops = Array(Math.floor(columns)).fill(1);
-
-  function draw() {
-    ctx.fillStyle = "rgba(0, 0, 0, 0.05)";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "#0F0"; ctx.font = fontSize + "px arial";
-    drops.forEach((y, i) => {
-      const text = letters[Math.floor(Math.random() * letters.length)];
-      ctx.fillText(text, i * fontSize, y * fontSize);
-      if (y * fontSize > canvas.height && Math.random() > 0.975) drops[i] = 0;
-      drops[i]++;
-    });
-  }
-  setInterval(draw, 33);
-</script>
